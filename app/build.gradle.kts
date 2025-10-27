@@ -8,9 +8,7 @@ plugins {
 
 android {
     namespace = "com.libreriag.app"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.libreriag.app"
@@ -31,22 +29,29 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     kotlinOptions {
         jvmTarget = "11"
     }
+
     buildFeatures {
         compose = true
     }
 }
 
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+
+
+    implementation("androidx.navigation:navigation-compose:2.7.3")
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))
