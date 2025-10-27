@@ -14,8 +14,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface {
-                    val navController = rememberNavController()
-                    AppNavHost(navController)
+                    val nav = rememberNavController()
+                    AppNavHost(nav)
                 }
             }
         }

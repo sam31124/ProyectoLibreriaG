@@ -6,16 +6,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BookDao {
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertBook(book: Book)
+    suspend fun insert(book: Book)
 
-    @Update
-    suspend fun updateBook(book: Book)
-
-    @Delete
-    suspend fun deleteBook(book: Book)
-
-    @Query("SELECT * FROM books ORDER BY titulo ASC")
-    fun getAllBooks(): Flow<List<Book>>
+    @Query("SELECT * FROM books ORDER BY id DESC")
+    fun getAll(): Flow<List<Book>>
 }

@@ -1,50 +1,43 @@
 package com.libreriag.app.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.libreriag.app.data.local.BookDatabase
 import com.libreriag.app.data.repository.BookRepository
 import com.libreriag.app.model.Book
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class BookViewModel(
-    private val repository: BookRepository
-) : ViewModel() {
+class BookViewModel(app: Application) : AndroidViewModel(app) {
 
-    // Lista de libros desde Room
-    val libros: StateFlow<List<Book>> = repository.libros as StateFlow<List<Book>>
+    private val repo = BookRepository(BookDatabase.get(app).bookDao())
 
-    // Mostrar mensajes de éxito
-    private val _mensaje = MutableStateFlow<String?>(null)
-    val mensaje: StateFlow<String?> = _mensaje
+    val books: StateFlow<List<Book>> =
+        repo.getAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    //Guardar libro
-    fun agregarLibro(book: Book) {
+    val title = MutableStateFlow("")
+    val author = MutableStateFlow("")
+    val titleError = MutableStateFlow<String?>(null)
+    val authorError = MutableStateFlow<String?>(null)
+
+    fun onTitleChange(v: String) { title.value = v; if (v.isBlank()) titleError.value = "Requerido" else titleError.value = null }
+    fun onAuthorChange(v: String) { author.value = v; if (v.isBlank()) authorError.value = "Requerido" else authorError.value = null }
+
+    fun save() {
+        val t = title.value.trim()
+        val a = author.value.trim()
+        titleError.value = if (t.isBlank()) "Requerido" else null
+        authorError.value = if (a.isBlank()) "Requerido" else null
+        if (t.isBlank() || a.isBlank()) return
+
         viewModelScope.launch {
-            repository.agregarLibro(book)
-            _mensaje.value = "Libro agregado correctamente"
+            repo.add(Book(title = t, author = a))
+            title.value = ""
+            author.value = ""
         }
-    }
-
-    // Eliminar libro
-    fun eliminarLibro(book: Book) {
-        viewModelScope.launch {
-            repository.eliminarLibro(book)
-            _mensaje.value = "Libro eliminado"
-        }
-    }
-
-    // Actualizar libro
-    fun actualizarLibro(book: Book) {
-        viewModelScope.launch {
-            repository.actualizarLibro(book)
-            _mensaje.value = "Libro actualizado"
-        }
-    }
-
-    // Limpiar mensaje
-    fun limpiarMensaje() {
-        _mensaje.value = null
     }
 }
