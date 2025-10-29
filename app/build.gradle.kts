@@ -77,9 +77,14 @@ dependencies {
     // Coil
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+
     // Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
+    // Opcional: Para ver en el "Logcat" qué datos envía y recibe tu app
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
