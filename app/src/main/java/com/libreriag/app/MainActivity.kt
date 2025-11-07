@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.navigation.compose.rememberNavController
 import com.libreriag.app.navigation.AppNavHost
+import com.libreriag.app.ui.theme.LibreriaGTheme
 import com.libreriag.app.viewmodel.BookViewModel
 
 class MainActivity : ComponentActivity() {
@@ -16,12 +17,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            val navController = rememberNavController()
+            LibreriaGTheme {
+                val navController = rememberNavController()
 
-            AppNavHost(
-                navController = navController,
-                bookViewModel = bookViewModel
-            )
+                AppNavHost(
+                    navController = navController,
+                    bookViewModel = bookViewModel
+                )
+            }
         }
     }
 }
