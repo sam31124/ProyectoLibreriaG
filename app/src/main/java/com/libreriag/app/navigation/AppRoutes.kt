@@ -6,9 +6,9 @@ sealed class AppRoutes(val route: String) {
 
     data object AddBook : AppRoutes("add_book")
 
+    data object Profile : AppRoutes("profile")
+
     data object Detail : AppRoutes("detail/{id}") {
         fun createRoute(id: Int) = "detail/$id"
     }
-
 }
-

@@ -1,10 +1,14 @@
 package com.libreriag.app.ui.addbook
 
 import android.Manifest
-import android.widget.Toast
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import coil.compose.rememberAsyncImagePainter
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -14,10 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.libreriag.app.viewmodel.BookViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,25 +27,27 @@ fun AddBookScreen(
     vm: BookViewModel,
     onSaved: () -> Unit
 ) {
-    val ctx = LocalContext.current
+
+    val title by vm.title.collectAsState()
+    val author by vm.author.collectAsState()
+
+    val titleError by vm.titleError.collectAsState()
+    val authorError by vm.authorError.collectAsState()
+
     val photoUri by vm.photoUri.collectAsState()
 
-    // --- PERMISO DE CÁMARA ---
-    val permissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (!granted) {
-                Toast.makeText(ctx, "Debes aceptar el permiso de cámara", Toast.LENGTH_SHORT).show()
-            }
-        }
+    // --- Permisos de cámara ---
+    val cameraPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {}
 
-    // --- LANZAR CÁMARA ---
-    val cameraLauncher =
+    // --- Lanzador de cámara ---
+    val takePictureLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-            if (success) {
-                Toast.makeText(ctx, "Foto tomada", Toast.LENGTH_SHORT).show()
-            }
+            if (!success) return@rememberLauncherForActivityResult
         }
 
+    // --- UI ---
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Agregar Libro") })
@@ -52,78 +55,76 @@ fun AddBookScreen(
     ) { padding ->
 
         Column(
-            Modifier
+            modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
-                .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
 
-            // --- PREVIEW FOTO ---
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .background(Color.LightGray),
-                contentAlignment = Alignment.Center
-            ) {
-                if (photoUri == null) {
-                    Text("Sin imagen", color = Color.DarkGray)
-                } else {
-                    AsyncImage(
-                        model = photoUri,
-                        contentDescription = "Foto libro",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+            // FOTO
+            Text("Foto del libro", style = MaterialTheme.typography.titleMedium)
+
+            if (photoUri != null) {
+                Image(
+                    painter = rememberAsyncImagePainter(photoUri),
+                    contentDescription = "Foto",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                )
             }
 
-            // --- BOTÓN CÁMARA ---
             Button(
-                modifier = Modifier.fillMaxWidth(),
                 onClick = {
-                    // pedir permiso
-                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                    cameraPermission.launch(Manifest.permission.CAMERA)
 
-                    val uri = vm.createImageUri()
+                    val uri: Uri = vm.createImageUri()
                     vm.setPhoto(uri)
-                    cameraLauncher.launch(uri)
-                }
+                    takePictureLauncher.launch(uri)
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Tomar Foto")
             }
 
-            // --- TÍTULO ---
+            // TÍTULO
             OutlinedTextField(
-                value = vm.title.collectAsState().value,
+                value = title,
                 onValueChange = vm::onTitleChange,
                 label = { Text("Título") },
+                isError = titleError != null,
+                supportingText = {
+                    if (titleError != null) Text(titleError!!, color = Color.Red)
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // --- AUTOR ---
+            // AUTOR
             OutlinedTextField(
-                value = vm.author.collectAsState().value,
+                value = author,
                 onValueChange = vm::onAuthorChange,
                 label = { Text("Autor") },
+                isError = authorError != null,
+                supportingText = {
+                    if (authorError != null) Text(authorError!!, color = Color.Red)
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // --- GUARDAR ---
+            // BOTÓN GUARDAR
             Button(
-                modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     vm.save()
-                    Toast.makeText(ctx, "Libro guardado", Toast.LENGTH_SHORT).show()
                     onSaved()
-                }
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.Save, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Guardar Libro")
+                Text("Guardar libro")
             }
         }
     }

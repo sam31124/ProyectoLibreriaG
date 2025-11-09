@@ -29,8 +29,32 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
 
     val title = MutableStateFlow("")
     val author = MutableStateFlow("")
-    val titleError = MutableStateFlow<String?>(null)
-    val authorError = MutableStateFlow<String?>(null)
+    var titleError = MutableStateFlow<String?>(null)
+    var authorError = MutableStateFlow<String?>(null)
+
+    fun validateForm(title: String, author: String): Boolean {
+        var isValid = true
+
+        if (title.isBlank()) {
+            titleError.value = "El título es obligatorio"
+            isValid = false
+        } else if (title.length < 3) {
+            titleError.value = "Debe tener mínimo 3 caracteres"
+            isValid = false
+        } else {
+            titleError.value = null
+        }
+
+        if (author.isBlank()) {
+            authorError.value = "El autor es obligatorio"
+            isValid = false
+        } else {
+            authorError.value = null
+        }
+
+        return isValid
+    }
+
 
     private val _photoUri = MutableStateFlow<Uri?>(null)
     val photoUri: StateFlow<Uri?> = _photoUri

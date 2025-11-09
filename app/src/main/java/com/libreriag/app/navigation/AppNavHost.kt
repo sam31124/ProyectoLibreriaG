@@ -9,6 +9,7 @@ import androidx.navigation.NavType
 import com.libreriag.app.ui.addbook.AddBookScreen
 import com.libreriag.app.ui.detail.DetailScreen
 import com.libreriag.app.ui.home.HomeScreen
+import com.libreriag.app.ui.profile.ProfileScreen
 import com.libreriag.app.viewmodel.BookViewModel
 
 @Composable
@@ -29,6 +30,10 @@ fun AppNavHost(
                 navController.popBackStack()
             }
         }
+        composable("profile") {
+            ProfileScreen()
+        }
+
 
 
 

@@ -2,10 +2,15 @@ package com.libreriag.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Colores sacados del logo Librería-G
-val YellowPrimary = Color(0xFFF4C23B)     // Amarillo del texto
-val BlueDark = Color(0xFF415428)          // Azul oscuro del fondo
-val GreenHat = Color(0xFF6B8F3E)          // Verde del gorro
-val GreenHatDark = Color(0xFF4F6B2D)      // Verde oscuro
-val BrownHair = Color(0xFF8A5A2E)         // Café del pelo
-val WhiteBG = Color(0xFFFFFFFF)           // Blanco total
+// PALETA CLARA MINIMALISTA
+val Primary = Color(0xFF1A73E8)     // Azul Google suave
+val PrimaryLight = Color(0xFF5393FF)
+val PrimaryDark = Color(0xFF1558B0)
+
+val Background = Color(0xFFF7F9FC)  // Gris muy claro
+val Surface = Color(0xFFFFFFFF)
+
+val TextPrimary = Color(0xFF1C1C1E)
+val TextSecondary = Color(0xFF6A6A6C)
+
+val Accent = Color(0xFFFFC107)      // Amarillo suave
