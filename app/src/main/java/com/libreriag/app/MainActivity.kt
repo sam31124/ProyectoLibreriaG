@@ -8,6 +8,7 @@ import androidx.navigation.compose.rememberNavController
 import com.libreriag.app.navigation.AppNavHost
 import com.libreriag.app.ui.theme.LibreriaGTheme
 import com.libreriag.app.viewmodel.BookViewModel
+import com.libreriag.app.notifications.NotificationHelper
 
 class MainActivity : ComponentActivity() {
 
@@ -15,6 +16,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        NotificationHelper.createChannel(this)
 
         setContent {
             LibreriaGTheme {

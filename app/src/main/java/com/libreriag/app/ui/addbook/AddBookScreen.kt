@@ -1,13 +1,23 @@
 package com.libreriag.app.ui.addbook
 
+import android.Manifest
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.libreriag.app.viewmodel.BookViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -16,17 +26,28 @@ fun AddBookScreen(
     vm: BookViewModel,
     onSaved: () -> Unit
 ) {
-    val title by vm.title.collectAsState()
-    val author by vm.author.collectAsState()
+    val ctx = LocalContext.current
+    val photoUri by vm.photoUri.collectAsState()
 
-    val titleError by vm.titleError.collectAsState()
-    val authorError by vm.authorError.collectAsState()
+    // --- PERMISO DE CÁMARA ---
+    val permissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                Toast.makeText(ctx, "Debes aceptar el permiso de cámara", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+    // --- LANZAR CÁMARA ---
+    val cameraLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            if (success) {
+                Toast.makeText(ctx, "Foto tomada", Toast.LENGTH_SHORT).show()
+            }
+        }
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Agregar libro") }
-            )
+            TopAppBar(title = { Text("Agregar Libro") })
         }
     ) { padding ->
 
@@ -35,58 +56,74 @@ fun AddBookScreen(
                 .padding(padding)
                 .padding(16.dp)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
+            // --- PREVIEW FOTO ---
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .background(Color.LightGray),
+                contentAlignment = Alignment.Center
+            ) {
+                if (photoUri == null) {
+                    Text("Sin imagen", color = Color.DarkGray)
+                } else {
+                    AsyncImage(
+                        model = photoUri,
+                        contentDescription = "Foto libro",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+
+            // --- BOTÓN CÁMARA ---
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    // pedir permiso
+                    permissionLauncher.launch(Manifest.permission.CAMERA)
+
+                    val uri = vm.createImageUri()
+                    vm.setPhoto(uri)
+                    cameraLauncher.launch(uri)
+                }
+            ) {
+                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Tomar Foto")
+            }
+
+            // --- TÍTULO ---
             OutlinedTextField(
-                value = title,
+                value = vm.title.collectAsState().value,
                 onValueChange = vm::onTitleChange,
                 label = { Text("Título") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Edit,
-                        contentDescription = null
-                    )
-                },
-                isError = titleError != null,
                 modifier = Modifier.fillMaxWidth()
             )
-            titleError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
 
+            // --- AUTOR ---
             OutlinedTextField(
-                value = author,
+                value = vm.author.collectAsState().value,
                 onValueChange = vm::onAuthorChange,
                 label = { Text("Autor") },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Filled.Edit,
-                        contentDescription = null
-                    )
-                },
-                isError = authorError != null,
                 modifier = Modifier.fillMaxWidth()
             )
-            authorError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-            }
 
-            Spacer(Modifier.height(8.dp))
-
+            // --- GUARDAR ---
             Button(
+                modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     vm.save()
-                    if (titleError == null && authorError == null) onSaved()
-                },
-                modifier = Modifier.fillMaxWidth()
+                    Toast.makeText(ctx, "Libro guardado", Toast.LENGTH_SHORT).show()
+                    onSaved()
+                }
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null
-                )
+                Icon(Icons.Default.Save, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
-                Text("Guardar")
+                Text("Guardar Libro")
             }
         }
     }

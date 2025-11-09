@@ -10,6 +10,5 @@ sealed class AppRoutes(val route: String) {
         fun createRoute(id: Int) = "detail/$id"
     }
 
-    data object Native : AppRoutes("native")
 }
 

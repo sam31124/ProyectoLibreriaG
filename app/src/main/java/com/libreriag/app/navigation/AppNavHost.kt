@@ -9,7 +9,6 @@ import androidx.navigation.NavType
 import com.libreriag.app.ui.addbook.AddBookScreen
 import com.libreriag.app.ui.detail.DetailScreen
 import com.libreriag.app.ui.home.HomeScreen
-import com.libreriag.app.ui.natives.NativeScreen
 import com.libreriag.app.viewmodel.BookViewModel
 
 @Composable
@@ -31,9 +30,7 @@ fun AppNavHost(
             }
         }
 
-        composable(AppRoutes.Native.route) {
-            NativeScreen()
-        }
+
 
         composable(
             route = AppRoutes.Detail.route,
