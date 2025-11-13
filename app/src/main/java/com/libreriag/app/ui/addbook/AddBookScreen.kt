@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.libreriag.app.viewmodel.BookViewModel
+import com.libreriag.app.ui.animations.FadeInAnimation
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,16 +93,15 @@ fun AddBookScreen(
             }
 
             // TÍTULO
-            OutlinedTextField(
-                value = title,
-                onValueChange = vm::onTitleChange,
-                label = { Text("Título") },
-                isError = titleError != null,
-                supportingText = {
+            OutlinedTextField(value = title, onValueChange = vm::onTitleChange, label = { Text("Título") }, isError = titleError != null, supportingText = {
                     if (titleError != null) Text(titleError!!, color = Color.Red)
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+                }, modifier = Modifier.fillMaxWidth())
+            FadeInAnimation {
+                Column(it) {
+                    Text("Agregar libro")
+                    // campos
+                }
+            }
 
             // AUTOR
             OutlinedTextField(
