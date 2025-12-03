@@ -77,18 +77,22 @@ dependencies {
     // Coil
     implementation("io.coil-kt:coil-compose:2.7.0")
 
-
     // Permissions
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+    // Retrofit & Networking
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
-
-    // Opcional: Para ver en el "Logcat" qué datos envía y recibe tu app
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    // Tests
+
+    // Tests (Básicos)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+
+    // --- 👇 AGREGADO: Librerías para Pruebas Unitarias (MockK y Coroutines) ---
+    testImplementation("io.mockk:mockk:1.13.8")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }

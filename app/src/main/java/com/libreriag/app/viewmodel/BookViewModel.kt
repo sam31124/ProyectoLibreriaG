@@ -14,6 +14,8 @@ import androidx.lifecycle.viewModelScope
 import com.libreriag.app.data.local.BookDatabase
 import com.libreriag.app.data.repository.BookRepository
 import com.libreriag.app.data.remote.RetrofitClient
+import com.libreriag.app.data.remote.ExternalRetrofitClient
+import com.libreriag.app.data.remote.ITBook
 import com.libreriag.app.model.Book
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,90 +28,164 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repo = BookRepository(BookDatabase.get(app).bookDao())
 
-    // Esta lista observa la base de datos local.
-    // Si guardamos cosas en 'repo', la UI se actualiza sola.
     val books: StateFlow<List<Book>> =
         repo.getAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Lista de API Externa
+    private val _recommendedBooks = MutableStateFlow<List<ITBook>>(emptyList())
+    val recommendedBooks: StateFlow<List<ITBook>> = _recommendedBooks
+
+    // --- VARIABLES DEL FORMULARIO ---
+    // 'currentId' nos dice si es nuevo (0) o edición (>0)
+    var currentId = MutableStateFlow<Int>(0)
     val title = MutableStateFlow("")
     val author = MutableStateFlow("")
     var titleError = MutableStateFlow<String?>(null)
     var authorError = MutableStateFlow<String?>(null)
 
     init {
-        // Al abrir la app, sincronizamos con la nube
         sincronizarConNube()
+        cargarRecomendaciones()
     }
 
-    // --- FUNCIÓN DE SINCRONIZACIÓN (Descargar y Guardar) ---
+    // --- FUNCIONES PARA EDITAR ---
+
+    // Llama a esto cuando toques un libro en la lista para editarlo
+    fun prepareUpdate(book: Book) {
+        currentId.value = book.id
+        title.value = book.title
+        author.value = book.author
+        if (book.photo != null) _photoUri.value = Uri.parse(book.photo)
+    }
+
+    // Limpia el formulario para empezar de cero
+    fun clearForm() {
+        currentId.value = 0
+        title.value = ""
+        author.value = ""
+        _photoUri.value = null
+        titleError.value = null
+        authorError.value = null
+    }
+
+    // --- GUARDAR (Crear o Editar) ---
+    fun save() {
+        val t = title.value.trim()
+        val a = author.value.trim()
+
+        if (!validateForm(t, a)) return
+
+        viewModelScope.launch {
+            val libroParaGuardar = Book(
+                id = currentId.value, // Usamos el ID actual (0 o existente)
+                title = t,
+                author = a,
+                photo = photoUri.value?.toString()
+            )
+
+            // 1. Guardar Local (Room maneja el ID si es 0, o actualiza si existe)
+            repo.add(libroParaGuardar)
+
+            // 2. Guardar Nube (Decidir si es POST o PUT)
+            try {
+                if (currentId.value == 0) {
+                    Log.d("SYNC", "📤 Creando libro nuevo...")
+                    RetrofitClient.api.createBook(libroParaGuardar)
+                } else {
+                    Log.d("SYNC", "📝 Actualizando libro ID ${currentId.value}...")
+                    // Llama al PUT que definimos en BookApiService
+                    RetrofitClient.api.updateBook(currentId.value, libroParaGuardar)
+                }
+
+                Log.d("SYNC", "✅ Operación en nube exitosa")
+                sincronizarConNube() // Refrescar para asegurar consistencia
+            } catch (e: Exception) {
+                Log.e("SYNC", "⚠️ Falló la nube: ${e.message}")
+            }
+
+            showNotification(if (currentId.value == 0) "Libro creado" else "Libro actualizado")
+
+            // Limpiamos todo al terminar
+            clearForm()
+        }
+    }
+
+    // --- SINCRONIZACIÓN Y OTROS ---
+
     fun sincronizarConNube() {
         viewModelScope.launch {
-            Log.d("SYNC", "☁️ Intentando descargar libros de Ubuntu...")
             try {
-                // 1. Pedir libros a la API
                 val librosNube = RetrofitClient.api.getBooks()
-
-                Log.d("SYNC", "✅ Recibidos ${librosNube.size} libros. Guardando en local...")
-
-                // 2. Guardarlos en la base de datos del celular (Room)
-                librosNube.forEach { libro ->
-                    // OJO: Esto podría duplicar libros si no validamos IDs,
-                    // pero para esta prueba es perfecto.
-                    repo.add(libro)
-                    Log.d("SYNC", "   💾 Guardado local: ${libro.title}")
-                }
+                repo.deleteAll() // Espejo: borrar local
+                librosNube.forEach { repo.add(it) }
             } catch (e: Exception) {
-                Log.e("SYNC", "❌ Error de sincronización: ${e.message}")
-                // No pasa nada, la app sigue funcionando con lo que tenga guardado en local
+                Log.e("SYNC", "Error AWS: ${e.message}")
             }
         }
     }
 
+    fun cargarRecomendaciones() {
+        viewModelScope.launch {
+            try {
+                val response = ExternalRetrofitClient.api.getNewBooks()
+                _recommendedBooks.value = response.books
+            } catch (e: Exception) {
+                Log.e("API_EXTERNA", "Error: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteBook(book: Book) {
+        viewModelScope.launch {
+            repo.delete(book)
+            try {
+                if (book.id > 0) {
+                    RetrofitClient.api.deleteBook(book.id)
+                    Log.d("SYNC", "🗑️ Libro eliminado de la nube")
+                }
+            } catch (e: Exception) {
+                Log.e("SYNC", "Error delete: ${e.message}")
+            }
+        }
+    }
+
+    // --- VALIDACIONES Y HELPERS ---
+
     fun validateForm(title: String, author: String): Boolean {
         var isValid = true
-
         if (title.isBlank()) {
-            titleError.value = "El título es obligatorio"
-            isValid = false
-        } else if (title.length < 3) {
-            titleError.value = "Debe tener mínimo 3 caracteres"
+            titleError.value = "Requerido"
             isValid = false
         } else {
             titleError.value = null
         }
-
         if (author.isBlank()) {
-            authorError.value = "El autor es obligatorio"
+            authorError.value = "Requerido"
             isValid = false
         } else {
             authorError.value = null
         }
-
         return isValid
     }
-
 
     private val _photoUri = MutableStateFlow<Uri?>(null)
     val photoUri: StateFlow<Uri?> = _photoUri
 
-    fun setPhoto(uri: Uri) {
-        _photoUri.value = uri
-    }
+    fun setPhoto(uri: Uri) { _photoUri.value = uri }
 
     fun onTitleChange(v: String) {
         title.value = v
-        titleError.value = if (v.isBlank()) "Requerido" else null
+        if(v.isNotBlank()) titleError.value = null
     }
 
     fun onAuthorChange(v: String) {
         author.value = v
-        authorError.value = if (v.isBlank()) "Requerido" else null
+        if(v.isNotBlank()) authorError.value = null
     }
 
     fun createImageUri(): Uri {
         val context = getApplication<Application>()
         val imageFile = File(context.filesDir, "photo_${System.currentTimeMillis()}.jpg")
-
         return FileProvider.getUriForFile(
             context,
             "com.libreriag.app.fileprovider",
@@ -117,10 +193,9 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
-    private fun showNotification(title: String) {
+    private fun showNotification(msg: String) {
         val app = getApplication<Application>()
         val channelId = "books_channel"
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 channelId,
@@ -130,50 +205,12 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
             val manager = app.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
-
         val builder = NotificationCompat.Builder(app, channelId)
             .setSmallIcon(android.R.drawable.ic_menu_save)
-            .setContentTitle("Libro guardado")
-            .setContentText("Se agregó: $title")
+            .setContentTitle("Librería G")
+            .setContentText(msg)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-
         NotificationManagerCompat.from(app).notify(1, builder.build())
-    }
-
-    fun save() {
-        val t = title.value.trim()
-        val a = author.value.trim()
-
-        titleError.value = if (t.isBlank()) "Requerido" else null
-        authorError.value = if (a.isBlank()) "Requerido" else null
-
-        if (t.isBlank() || a.isBlank()) return
-
-        viewModelScope.launch {
-            val nuevoLibro = Book(
-                title = t,
-                author = a,
-                photo = photoUri.value?.toString()
-            )
-
-            // 1. Guardar Local (Para que el usuario lo vea YA)
-            repo.add(nuevoLibro)
-
-            // 2. Enviar a la Nube (En segundo plano)
-            try {
-                Log.d("SYNC", "📤 Subiendo libro a Ubuntu...")
-                RetrofitClient.api.createBook(nuevoLibro)
-                Log.d("SYNC", "✅ Subida exitosa")
-            } catch (e: Exception) {
-                Log.e("SYNC", "⚠️ Falló la subida (se intentará en la próxima sync): ${e.message}")
-            }
-
-            showNotification(t)
-
-            title.value = ""
-            author.value = ""
-            _photoUri.value = null
-        }
     }
 }
