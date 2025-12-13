@@ -16,7 +16,11 @@ import com.libreriag.app.data.repository.BookRepository
 import com.libreriag.app.data.remote.RetrofitClient
 import com.libreriag.app.data.remote.ExternalRetrofitClient
 import com.libreriag.app.data.remote.ITBook
+// 👇 Imports de Modelos (Libros y Usuarios)
 import com.libreriag.app.model.Book
+import com.libreriag.app.model.User
+import com.libreriag.app.model.LoginRequest
+import com.libreriag.app.model.RegisterRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,8 +39,20 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
     private val _recommendedBooks = MutableStateFlow<List<ITBook>>(emptyList())
     val recommendedBooks: StateFlow<List<ITBook>> = _recommendedBooks
 
-    // --- VARIABLES DEL FORMULARIO ---
-    // 'currentId' nos dice si es nuevo (0) o edición (>0)
+    // --- USUARIOS: Login y Registro ---
+    private val _currentUser = MutableStateFlow<User?>(null)
+    val currentUser: StateFlow<User?> = _currentUser
+
+    val loginEmail = MutableStateFlow("")
+    val loginPassword = MutableStateFlow("")
+    val loginError = MutableStateFlow<String?>(null)
+
+    val registerName = MutableStateFlow("")
+    val registerEmail = MutableStateFlow("")
+    val registerPassword = MutableStateFlow("")
+    val registerError = MutableStateFlow<String?>(null)
+
+    // --- VARIABLES DEL FORMULARIO LIBROS ---
     var currentId = MutableStateFlow<Int>(0)
     val title = MutableStateFlow("")
     val author = MutableStateFlow("")
@@ -48,9 +64,96 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
         cargarRecomendaciones()
     }
 
-    // --- FUNCIONES PARA EDITAR ---
+    // --- LOGIN ---
+    fun login(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            loginError.value = null
+            try {
+                Log.d("LOGIN", "Intentando entrar con: ${loginEmail.value}")
+                val response = RetrofitClient.api.login(
+                    LoginRequest(loginEmail.value, loginPassword.value)
+                )
 
-    // Llama a esto cuando toques un libro en la lista para editarlo
+                if (response.isSuccessful && response.body()?.user != null) {
+                    _currentUser.value = response.body()?.user
+                    Log.d("LOGIN", "✅ Éxito! Rol: ${_currentUser.value?.role}")
+                    onSuccess()
+                } else {
+                    loginError.value = "Credenciales incorrectas"
+                }
+            } catch (e: Exception) {
+                loginError.value = "Error de conexión: ${e.message}"
+            }
+        }
+    }
+
+    // --- REGISTRO ---
+    fun register(onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            registerError.value = null
+            try {
+                val response = RetrofitClient.api.register(
+                    RegisterRequest(registerName.value, registerEmail.value, registerPassword.value)
+                )
+                if (response.isSuccessful && response.body()?.user != null) {
+                    _currentUser.value = response.body()?.user
+                    onSuccess()
+                } else {
+                    registerError.value = "Error al registrarse (Email duplicado?)"
+                }
+            } catch (e: Exception) {
+                registerError.value = "Error de conexión: ${e.message}"
+            }
+        }
+    }
+
+    fun logout() {
+        _currentUser.value = null
+        loginEmail.value = ""
+        loginPassword.value = ""
+    }
+
+    // --- CRUD LIBROS (Crear y Editar) ---
+    fun save() {
+        val t = title.value.trim()
+        val a = author.value.trim()
+
+        if (!validateForm(t, a)) return
+
+        viewModelScope.launch {
+            val libroParaGuardar = Book(
+                id = currentId.value,
+                title = t,
+                author = a,
+                photo = photoUri.value?.toString()
+            )
+
+            // 1. Guardar Local
+            repo.add(libroParaGuardar)
+
+            // 2. Guardar Nube
+            try {
+                if (currentId.value == 0) {
+                    Log.d("SYNC", "📤 Creando libro nuevo...")
+                    RetrofitClient.api.createBook(libroParaGuardar)
+                } else {
+                    Log.d("SYNC", "📝 Actualizando libro ID ${currentId.value}...")
+                    RetrofitClient.api.updateBook(currentId.value, libroParaGuardar)
+                }
+
+                Log.d("SYNC", "✅ Operación en nube exitosa")
+                sincronizarConNube()
+            } catch (e: Exception) {
+                Log.e("SYNC", "⚠️ Falló la nube: ${e.message}")
+            }
+
+            showNotification(if (currentId.value == 0) "Libro creado" else "Libro actualizado")
+            clearForm()
+        }
+    }
+
+    // --- FUNCIONES AUXILIARES ---
+
     fun prepareUpdate(book: Book) {
         currentId.value = book.id
         title.value = book.title
@@ -58,7 +161,6 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
         if (book.photo != null) _photoUri.value = Uri.parse(book.photo)
     }
 
-    // Limpia el formulario para empezar de cero
     fun clearForm() {
         currentId.value = 0
         title.value = ""
@@ -68,55 +170,11 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
         authorError.value = null
     }
 
-    // --- GUARDAR (Crear o Editar) ---
-    fun save() {
-        val t = title.value.trim()
-        val a = author.value.trim()
-
-        if (!validateForm(t, a)) return
-
-        viewModelScope.launch {
-            val libroParaGuardar = Book(
-                id = currentId.value, // Usamos el ID actual (0 o existente)
-                title = t,
-                author = a,
-                photo = photoUri.value?.toString()
-            )
-
-            // 1. Guardar Local (Room maneja el ID si es 0, o actualiza si existe)
-            repo.add(libroParaGuardar)
-
-            // 2. Guardar Nube (Decidir si es POST o PUT)
-            try {
-                if (currentId.value == 0) {
-                    Log.d("SYNC", "📤 Creando libro nuevo...")
-                    RetrofitClient.api.createBook(libroParaGuardar)
-                } else {
-                    Log.d("SYNC", "📝 Actualizando libro ID ${currentId.value}...")
-                    // Llama al PUT que definimos en BookApiService
-                    RetrofitClient.api.updateBook(currentId.value, libroParaGuardar)
-                }
-
-                Log.d("SYNC", "✅ Operación en nube exitosa")
-                sincronizarConNube() // Refrescar para asegurar consistencia
-            } catch (e: Exception) {
-                Log.e("SYNC", "⚠️ Falló la nube: ${e.message}")
-            }
-
-            showNotification(if (currentId.value == 0) "Libro creado" else "Libro actualizado")
-
-            // Limpiamos todo al terminar
-            clearForm()
-        }
-    }
-
-    // --- SINCRONIZACIÓN Y OTROS ---
-
     fun sincronizarConNube() {
         viewModelScope.launch {
             try {
                 val librosNube = RetrofitClient.api.getBooks()
-                repo.deleteAll() // Espejo: borrar local
+                repo.deleteAll() // Espejo
                 librosNube.forEach { repo.add(it) }
             } catch (e: Exception) {
                 Log.e("SYNC", "Error AWS: ${e.message}")
@@ -141,15 +199,12 @@ class BookViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 if (book.id > 0) {
                     RetrofitClient.api.deleteBook(book.id)
-                    Log.d("SYNC", "🗑️ Libro eliminado de la nube")
                 }
             } catch (e: Exception) {
                 Log.e("SYNC", "Error delete: ${e.message}")
             }
         }
     }
-
-    // --- VALIDACIONES Y HELPERS ---
 
     fun validateForm(title: String, author: String): Boolean {
         var isValid = true

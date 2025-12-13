@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
-// 👇 Importamos el icono de refrescar
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -34,122 +33,127 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
 
     val books by vm.books.collectAsState()
     val recommendedBooks by vm.recommendedBooks.collectAsState()
-    val context = LocalContext.current // Necesario para mostrar mensajes (Toasts)
+    val user by vm.currentUser.collectAsState() // Obtenemos el usuario actual
+    val context = LocalContext.current
+
+    // --- LÓGICA DE ROLES (PERMISOS) ---
+    // 1. Admin: Todo
+    // 2. Editor: Todo menos borrar
+    // 3. User: Solo ver
+    // 4. Guest: Solo ver (sin perfil)
+
+    val role = user?.role ?: "guest"
+    val canAdd = role == "admin" || role == "editor"
+    val canEdit = role == "admin" || role == "editor"
+    val canDelete = role == "admin"
+    val hasProfile = role != "guest"
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Librería-G") },
+                title = {
+                    Column {
+                        Text("Librería-G")
+                        // Mostramos el rol para que sepas con quién estás probando
+                        Text(
+                            text = "Rol: ${role.uppercase()}",
+                            fontSize = 12.sp,
+                            lineHeight = 14.sp,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                },
                 actions = {
-                    // --- 🔄 BOTÓN DE SINCRONIZAR (CUMPLE REQUISITO "RECIBIR DATOS") ---
+                    // Botón Sincronizar (Para todos)
                     IconButton(onClick = {
-                        // Feedback visual para que sepas que sí funcionó el clic
-                        Toast.makeText(context, "🔄 Sincronizando con la nube...", Toast.LENGTH_SHORT).show()
-
-                        // Esto hace que la app vaya a Ubuntu y traiga lo nuevo (ej: lo de Postman)
+                        Toast.makeText(context, "🔄 Sincronizando...", Toast.LENGTH_SHORT).show()
                         vm.sincronizarConNube()
                         vm.cargarRecomendaciones()
                     }) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Sincronizar datos"
-                        )
+                        Icon(Icons.Default.Refresh, "Sincronizar")
                     }
 
-                    // Botón Perfil
-                    IconButton(onClick = {
-                        navController.navigate("profile")
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Perfil"
-                        )
+                    // Botón Perfil (Solo si no es invitado)
+                    if (hasProfile) {
+                        IconButton(onClick = { navController.navigate("profile") }) {
+                            Icon(Icons.Default.Person, "Perfil")
+                        }
+                    } else {
+                        // Botón Salir Rápido (Para invitados)
+                        TextButton(onClick = {
+                            vm.logout()
+                            navController.navigate("login") { popUpTo("home") { inclusive = true } }
+                        }) {
+                            Text("SALIR")
+                        }
                     }
                 }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                vm.clearForm() // Limpiamos para que no salga "Editar" si queríamos "Crear"
-                navController.navigate("add_book")
-            }) {
-                Icon(Icons.Default.Add, contentDescription = "Agregar libro")
+            // Solo mostramos el botón + si tiene permiso (Admin o Editor)
+            if (canAdd) {
+                FloatingActionButton(onClick = {
+                    vm.clearForm()
+                    navController.navigate("add_book")
+                }) {
+                    Icon(Icons.Default.Add, "Agregar")
+                }
             }
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // --- SECCIÓN 1: API EXTERNA ---
+            // Sección API Externa
             item {
-                Text(
-                    text = "🌐 Novedades IT (API Externa)",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text("Fuente: api.itbook.store", fontSize = 12.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (recommendedBooks.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                Text("🌐 Novedades IT (API Externa)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                if (recommendedBooks.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(recommendedBooks) { book -> ITBookItem(book) }
                     }
                 } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(recommendedBooks) { book ->
-                            ITBookItem(book)
-                        }
-                    }
+                    Text("Cargando novedades...", fontSize = 12.sp, color = Color.Gray)
                 }
             }
 
             item { Divider(modifier = Modifier.padding(vertical = 8.dp)) }
 
-            // --- SECCIÓN 2: TUS LIBROS (AWS + Local) ---
-            item {
-                Text(
-                    text = "📚 Mis Libros",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            // Sección Tus Libros
+            item { Text("📚 Mis Libros (AWS)", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) }
 
-            if (books.isEmpty()) {
-                item { Text("No hay libros. Dale al botón 🔄 para descargar.") }
-            }
+            if (books.isEmpty()) item { Text("No hay libros guardados.") }
 
             items(books) { book ->
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            // Al tocar un libro, lo preparamos para EDITAR (Update)
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        // Lógica de click en el libro (Editar o Ver Detalle)
+                        if (canEdit) {
                             vm.prepareUpdate(book)
                             navController.navigate("add_book")
-                        },
+                        } else {
+                            Toast.makeText(context, "Modo lectura: No tienes permisos para editar", Toast.LENGTH_SHORT).show()
+                            // Aquí podrías navegar al detalle si quisieras: navController.navigate("detail/${book.id}")
+                        }
+                    },
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = book.title, fontWeight = FontWeight.Bold)
-                            Text(text = "Autor: ${book.author}", fontSize = 14.sp)
+                            Text(book.title, fontWeight = FontWeight.Bold)
+                            Text("Autor: ${book.author}", fontSize = 14.sp)
                         }
 
-                        // Botón Borrar (Delete)
-                        IconButton(onClick = { vm.deleteBook(book) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Borrar", tint = Color.Red)
+                        // Solo mostramos borrar si es ADMIN
+                        if (canDelete) {
+                            IconButton(onClick = { vm.deleteBook(book) }) {
+                                Icon(Icons.Default.Delete, "Borrar", tint = Color.Red)
+                            }
                         }
                     }
                 }
@@ -158,21 +162,12 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
     }
 }
 
-// Tarjeta para libros de la API Externa
 @Composable
 fun ITBookItem(book: ITBook) {
-    Card(
-        modifier = Modifier.width(120.dp).height(180.dp),
-        elevation = CardDefaults.cardElevation(4.dp)
-    ) {
+    Card(modifier = Modifier.width(120.dp).height(180.dp), elevation = CardDefaults.cardElevation(4.dp)) {
         Column(modifier = Modifier.padding(8.dp)) {
-            AsyncImage(
-                model = book.imageUrl,
-                contentDescription = null,
-                modifier = Modifier.fillMaxWidth().height(90.dp)
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = book.title, maxLines = 2, fontSize = 11.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold)
+            AsyncImage(model = book.imageUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(90.dp))
+            Text(book.title, maxLines = 2, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
