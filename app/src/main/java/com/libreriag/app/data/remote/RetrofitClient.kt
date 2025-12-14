@@ -6,7 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 object RetrofitClient {
     // ⚠️ REEMPLAZA ESTO CON LA IP DE TU SERVIDOR UBUNTU (AWS)
     // Ejemplo: "[http://54.123.45.67:3000/](http://54.123.45.67:3000/)"
-    private const val BASE_URL = "http://100.27.209.77:3000/"
+    private const val BASE_URL = "http://44.213.253.138:3000/"
 
     val api: BookApiService by lazy {
         Retrofit.Builder()

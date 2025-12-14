@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
@@ -18,7 +20,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,15 +37,10 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
 
     val books by vm.books.collectAsState()
     val recommendedBooks by vm.recommendedBooks.collectAsState()
-    val user by vm.currentUser.collectAsState() // Obtenemos el usuario actual
+    val user by vm.currentUser.collectAsState()
     val context = LocalContext.current
 
     // --- LÓGICA DE ROLES (PERMISOS) ---
-    // 1. Admin: Todo
-    // 2. Editor: Todo menos borrar
-    // 3. User: Solo ver
-    // 4. Guest: Solo ver (sin perfil)
-
     val role = user?.role ?: "guest"
     val canAdd = role == "admin" || role == "editor"
     val canEdit = role == "admin" || role == "editor"
@@ -54,7 +53,6 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
                 title = {
                     Column {
                         Text("Librería-G")
-                        // Mostramos el rol para que sepas con quién estás probando
                         Text(
                             text = "Rol: ${role.uppercase()}",
                             fontSize = 12.sp,
@@ -64,7 +62,7 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
                     }
                 },
                 actions = {
-                    // Botón Sincronizar (Para todos)
+                    // Botón Sincronizar
                     IconButton(onClick = {
                         Toast.makeText(context, "🔄 Sincronizando...", Toast.LENGTH_SHORT).show()
                         vm.sincronizarConNube()
@@ -73,13 +71,13 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
                         Icon(Icons.Default.Refresh, "Sincronizar")
                     }
 
-                    // Botón Perfil (Solo si no es invitado)
+                    // Botón Perfil
                     if (hasProfile) {
                         IconButton(onClick = { navController.navigate("profile") }) {
                             Icon(Icons.Default.Person, "Perfil")
                         }
                     } else {
-                        // Botón Salir Rápido (Para invitados)
+                        // Botón Salir (Invitados)
                         TextButton(onClick = {
                             vm.logout()
                             navController.navigate("login") { popUpTo("home") { inclusive = true } }
@@ -91,7 +89,6 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
             )
         },
         floatingActionButton = {
-            // Solo mostramos el botón + si tiene permiso (Admin o Editor)
             if (canAdd) {
                 FloatingActionButton(onClick = {
                     vm.clearForm()
@@ -103,7 +100,10 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Sección API Externa
@@ -128,28 +128,59 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
             items(books) { book ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable {
-                        // Lógica de click en el libro (Editar o Ver Detalle)
                         if (canEdit) {
                             vm.prepareUpdate(book)
                             navController.navigate("add_book")
                         } else {
-                            Toast.makeText(context, "Modo lectura: No tienes permisos para editar", Toast.LENGTH_SHORT).show()
-                            // Aquí podrías navegar al detalle si quisieras: navController.navigate("detail/${book.id}")
+                            Toast.makeText(context, "Modo lectura", Toast.LENGTH_SHORT).show()
                         }
                     },
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp), // Padding interno
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(book.title, fontWeight = FontWeight.Bold)
-                            Text("Autor: ${book.author}", fontSize = 14.sp)
+                        // --- 📸 FOTO DEL LIBRO (CORREGIDO) ---
+                        Surface(
+                            modifier = Modifier.size(60.dp, 90.dp), // Tamaño miniatura vertical
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color.LightGray
+                        ) {
+                            if (book.photo != null) {
+                                AsyncImage(
+                                    model = book.photo, // Coil carga Base64 o URL
+                                    contentDescription = "Portada",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    Icon(Icons.Default.Image, contentDescription = null, tint = Color.White)
+                                }
+                            }
                         }
 
-                        // Solo mostramos borrar si es ADMIN
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        // Texto del Libro
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = book.title,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                maxLines = 2
+                            )
+                            Text(
+                                text = "Autor: ${book.author}",
+                                fontSize = 14.sp,
+                                color = Color.Gray
+                            )
+                        }
+
+                        // Botón Borrar (Solo Admin)
                         if (canDelete) {
                             IconButton(onClick = { vm.deleteBook(book) }) {
                                 Icon(Icons.Default.Delete, "Borrar", tint = Color.Red)
@@ -162,6 +193,7 @@ fun HomeScreen(navController: NavController, vm: BookViewModel) {
     }
 }
 
+// Tarjeta API Externa
 @Composable
 fun ITBookItem(book: ITBook) {
     Card(modifier = Modifier.width(120.dp).height(180.dp), elevation = CardDefaults.cardElevation(4.dp)) {
