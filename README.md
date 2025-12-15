@@ -47,10 +47,9 @@ Consumo de ITBook Store API mediante Retrofit para mostrar un carrusel de noveda
 🔗 Listado de Endpoints
 
 1. Microservicio Propio (AWS)
+IP Elastica (no cambia)
 
-⚠️ Nota Importante: La IP de la instancia EC2 es dinámica. Asegúrese de que la instancia esté encendida y reemplace la IP si esta cambia.
-
-Base URL Actual: http://98.94.88.109:3000/     
+Base URL Actual: http://44.213.253.138:3000/     
 
 Método
 
